@@ -1,0 +1,47 @@
+name: Construire l'APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Créer le projet Android avec notre code
+        run: |
+          unzip -q source.zip -d src
+          flutter create --platforms=android --project-name rotegan --org com.rotegan app_build
+          rm -rf app_build/lib
+          cp -r src/lib app_build/lib
+          if [ -f src/setup.sh ]; then sh src/setup.sh; fi
+
+      - name: Ajouter les librairies
+        working-directory: app_build
+        run: flutter pub add supabase_flutter image_picker flutter_webrtc
+
+      - name: Permissions Android
+        run: |
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <application#' app_build/android/app/src/main/AndroidManifest.xml
+
+      - name: Construire l'APK
+        working-directory: app_build
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rotegan-apk
+          path: app_build/build/app/outputs/flutter-apk/app-release.apk
